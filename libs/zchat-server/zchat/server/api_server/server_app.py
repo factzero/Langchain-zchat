@@ -8,9 +8,12 @@ from fastapi import FastAPI
 
 from zchat import __version__
 from zchat.server.api_server.chat_routes import chat_router
+from zchat.server.knowledge_base.migrate import create_tables
 
 
 def create_app(run_mode: str = None):
+    create_tables()
+    
     app = FastAPI(title="Langchain-zchat API Server", version=__version__)
 
     app.include_router(chat_router)

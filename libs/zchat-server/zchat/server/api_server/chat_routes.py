@@ -10,6 +10,7 @@ from zchat.server.utils import (
     get_tool,
     get_tool_config,
 )
+from zchat.server.db.repository import add_message_to_db
 from .openai_routes import openai_request, OpenAIChatOutput
 
 

@@ -128,9 +128,15 @@ def dialogue_page(api: ApiRequest):
         
         messages = [{"role": "user", "content": prompt}]
         
+        conversation_id = chat_box.context["uid"]
+        extra_body = dict(
+            conversation_id=conversation_id,
+        )
+        
         params = dict(
             messages=messages,
             model="Qwen2.5-1.5B-Instruct-local",
+            extra_body=extra_body,
         )
         
         try:
