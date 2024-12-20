@@ -1,6 +1,7 @@
 import uuid
 import openai
 import streamlit as st
+import streamlit_antd_components as sac
 from streamlit_chatbox import *
 from streamlit_extras.bottom_container import bottom
 from streamlit_paste_button import paste_image_button
@@ -12,6 +13,120 @@ from zchat.webui_pages.utils import *
 
 chat_box = ChatBox()
 
+
+def save_session(conv_name: str = None):
+    """save session state to chat context"""
+    chat_box.context_from_session(
+        conv_name, exclude=["selected_page", "prompt", "cur_conv_name", "upload_image"]
+    )
+
+
+def restore_session(conv_name: str = None):
+    """restore sesstion state from chat context"""
+    chat_box.context_to_session(
+        conv_name, exclude=["selected_page", "prompt", "cur_conv_name", "upload_image"]
+    )
+
+
+def rerun():
+    """
+    save chat context before rerun
+    """
+    save_session()
+    st.rerun()
+
+
+def get_messages_history(
+    history_len: int, content_in_expander: bool = False
+) -> List[Dict]:
+    """
+    返回消息历史。
+    content_in_expander控制是否返回expander元素中的内容，一般导出的时候可以选上，传入LLM的history不需要
+    """
+
+    def filter(msg):
+        content = [
+            x for x in msg["elements"] if x._output_method in ["markdown", "text"]
+        ]
+        if not content_in_expander:
+            content = [x for x in content if not x._in_expander]
+        content = [x.content for x in content]
+
+        return {
+            "role": msg["role"],
+            "content": "\n\n".join(content),
+        }
+
+    messages = chat_box.filter_history(history_len=history_len, filter=filter)
+    if sys_msg := chat_box.context.get("system_message"):
+        messages = [{"role": "system", "content": sys_msg}] + messages
+
+    return messages
+
+
+@st.cache_data
+def upload_temp_docs(files, _api: ApiRequest) -> str:
+    """
+    将文件上传到临时目录，用于文件对话
+    返回临时向量库ID
+    """
+    return _api.upload_temp_docs(files).get("data", {}).get("id")
+
+
+@st.cache_data
+def upload_image_file(file_name: str, content: bytes) -> dict:
+    '''upload image for vision model using openai sdk'''
+    client = openai.Client(base_url=f"{api_address()}/v1", api_key="NONE")
+    return client.files.create(file=(file_name, content), purpose="assistants").to_dict()
+
+
+def get_image_file_url(upload_file: dict) -> str:
+    file_id = upload_file.get("id")
+    return f"{api_address(True)}/v1/files/{file_id}/content"
+
+
+def add_conv(name: str = ""):
+    conv_names = chat_box.get_chat_names()
+    if not name:
+        i = len(conv_names) + 1
+        while True:
+            name = f"会话{i}"
+            if name not in conv_names:
+                break
+            i += 1
+    if name in conv_names:
+        sac.alert(
+            "创建新会话出错",
+            f"该会话名称 “{name}” 已存在",
+            color="error",
+            closable=True,
+        )
+    else:
+        chat_box.use_chat_name(name)
+        st.session_state["cur_conv_name"] = name
+
+
+def del_conv(name: str = None):
+    conv_names = chat_box.get_chat_names()
+    name = name or chat_box.cur_chat_name
+
+    if len(conv_names) == 1:
+        sac.alert(
+            "删除会话出错", f"这是最后一个会话，无法删除", color="error", closable=True
+        )
+    elif not name or name not in conv_names:
+        sac.alert(
+            "删除会话出错", f"无效的会话名称：“{name}”", color="error", closable=True
+        )
+    else:
+        chat_box.del_chat_name(name)
+        # restore_session()
+    st.session_state["cur_conv_name"] = chat_box.cur_chat_name
+
+
+def clear_conv(name: str = None):
+    chat_box.reset_history(name=name or None)
+    
 
 def list_tools(_api: ApiRequest):
     return _api.list_tools() or {}

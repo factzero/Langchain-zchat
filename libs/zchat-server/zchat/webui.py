@@ -7,6 +7,8 @@ import streamlit_antd_components as sac
 
 from zchat import __version__
 from zchat.webui_pages.dialogue.dialogue import dialogue_page
+from zchat.webui_pages.knowledge_base.knowledge_base import knowledge_base_page
+from zchat.webui_pages.kb_chat import kb_chat
 from zchat.webui_pages.utils import *
 
 
@@ -54,5 +56,10 @@ if __name__ == "__main__":
         )
 
         sac.divider()
-    
-    dialogue_page(api)
+        
+    if selected_page == "知识库管理":
+        knowledge_base_page(api=api)
+    elif selected_page == "RAG 对话":
+        kb_chat(api=api)
+    else:
+        dialogue_page(api)

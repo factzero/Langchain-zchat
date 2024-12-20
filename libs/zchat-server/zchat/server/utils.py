@@ -23,7 +23,7 @@ from typing import (
 import httpx
 import openai
 from fastapi import FastAPI
-from langchain.tools import BaseTool
+from langchain.tools import BaseTool, StructuredTool
 from langchain_core.embeddings import Embeddings
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_openai.llms import OpenAI
@@ -34,8 +34,13 @@ from zchat.server.pydantic_v2 import BaseModel, Field
 from zchat.utils import build_logger
 import requests
 
+
 logger = build_logger()
 
+
+class CustomBaseTool(StructuredTool):
+    title: str = None
+    
 
 async def wrap_done(fn: Awaitable, event: asyncio.Event):
     """Wrap an awaitable with a event to signal when it's done or an exception is raised."""
@@ -309,7 +314,7 @@ def get_Embeddings(
     from langchain_community.embeddings import OllamaEmbeddings
     from langchain_openai import OpenAIEmbeddings
 
-    from chatchat.server.localai_embeddings import (
+    from zchat.server.localai_embeddings import (
         LocalAIEmbeddings,
     )
 
@@ -637,7 +642,7 @@ def api_address(is_public: bool = False) -> str:
 
 
 def webui_address() -> str:
-    from chatchat.settings import Settings
+    from zchat.settings import Settings
 
     host = Settings.basic_settings.WEBUI_SERVER["host"]
     port = Settings.basic_settings.WEBUI_SERVER["port"]
@@ -652,7 +657,7 @@ def get_prompt_template(type: str, name: str) -> Optional[str]:
 
     from zchat.settings import Settings
 
-    return Settings.prompt_settings.model_dump().get(type, {}).get(name)
+    return Settings.prompt_settings.get(type, {}).get(name)
 
 
 def set_httpx_config(
@@ -842,52 +847,55 @@ def get_temp_dir(id: str = None) -> Tuple[str, str]:
     """
     import uuid
 
-    from chatchat.settings import Settings
+    from zchat.settings import Settings
 
     if id is not None:  # 如果指定的临时目录已存在，直接返回
-        path = os.path.join(Settings.basic_settings.BASE_TEMP_DIR, id)
+        path = os.path.join(Settings.basic_settings["BASE_TEMP_DIR"], id)
         if os.path.isdir(path):
             return path, id
 
     id = uuid.uuid4().hex
-    path = os.path.join(Settings.basic_settings.BASE_TEMP_DIR, id)
+    path = os.path.join(Settings.basic_settings["BASE_TEMP_DIR"], id)
     os.mkdir(path)
     return path, id
 
 
 # 动态更新知识库信息
 def update_search_local_knowledgebase_tool():
-    import re
+    try:
+        import re
 
-    from chatchat.server.agent.tools_factory import tools_registry
-    from chatchat.server.db.repository.knowledge_base_repository import list_kbs_from_db
+        from zchat.server.agent.tools_factory import tools_registry
+        from zchat.server.db.repository.knowledge_base_repository import list_kbs_from_db
 
-    kbs = list_kbs_from_db()
-    template = "Use local knowledgebase from one or more of these:\n{KB_info}\n to get information，Only local data on this knowledge use this tool. The 'database' should be one of the above [{key}]."
-    KB_info_str = "\n".join([f"{kb.kb_name}: {kb.kb_info}" for kb in kbs])
-    KB_name_info_str = "\n".join([f"{kb.kb_name}" for kb in kbs])
-    template_knowledge = template.format(KB_info=KB_info_str, key=KB_name_info_str)
+        kbs = list_kbs_from_db()
+        template = "Use local knowledgebase from one or more of these:\n{KB_info}\n to get information，Only local data on this knowledge use this tool. The 'database' should be one of the above [{key}]."
+        KB_info_str = "\n".join([f"{kb.kb_name}: {kb.kb_info}" for kb in kbs])
+        KB_name_info_str = "\n".join([f"{kb.kb_name}" for kb in kbs])
+        template_knowledge = template.format(KB_info=KB_info_str, key=KB_name_info_str)
 
-    search_local_knowledgebase_tool = tools_registry._TOOLS_REGISTRY.get(
-        "search_local_knowledgebase"
-    )
-    if search_local_knowledgebase_tool:
-        search_local_knowledgebase_tool.description = " ".join(
-            re.split(r"\n+\s*", template_knowledge)
+        search_local_knowledgebase_tool = tools_registry._TOOLS_REGISTRY.get(
+            "search_local_knowledgebase"
         )
-        search_local_knowledgebase_tool.args["database"]["choices"] = [
-            kb.kb_name for kb in kbs
-        ]
+        if search_local_knowledgebase_tool:
+            search_local_knowledgebase_tool.description = " ".join(
+                re.split(r"\n+\s*", template_knowledge)
+            )
+            search_local_knowledgebase_tool.args["database"]["choices"] = [
+                kb.kb_name for kb in kbs
+            ]
+    except Exception as e:
+        logger.warning(f"error update_search_local_knowledgebase_tool: {e}")
 
 
 def get_tool(name: str = None) -> Union[BaseTool, Dict[str, BaseTool]]:
     import importlib
 
-    from chatchat.server.agent import tools_factory
+    from zchat.server.agent import tools_factory
 
     importlib.reload(tools_factory)
 
-    from chatchat.server.agent.tools_factory import tools_registry
+    from zchat.server.agent.tools_factory import tools_registry
 
     update_search_local_knowledgebase_tool()
     if name is None:
@@ -897,12 +905,12 @@ def get_tool(name: str = None) -> Union[BaseTool, Dict[str, BaseTool]]:
 
 
 def get_tool_config(name: str = None) -> Dict:
-    from chatchat.settings import Settings
+    from zchat.settings import Settings
 
     if name is None:
-        return Settings.tool_settings.model_dump()
+        return Settings.tool_settings
     else:
-        return Settings.tool_settings.model_dump().get(name, {})
+        return Settings.tool_settings.get(name, {})
 
 
 def is_port_in_use(port):

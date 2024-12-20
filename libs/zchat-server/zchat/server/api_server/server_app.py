@@ -8,15 +8,17 @@ from fastapi import FastAPI
 
 from zchat import __version__
 from zchat.server.api_server.chat_routes import chat_router
+from zchat.server.api_server.tool_routes import tool_router
+from zchat.server.api_server.kb_routes import kb_router
 from zchat.server.knowledge_base.migrate import create_tables
 
 
 def create_app(run_mode: str = None):
-    create_tables()
-    
     app = FastAPI(title="Langchain-zchat API Server", version=__version__)
 
     app.include_router(chat_router)
+    app.include_router(tool_router)
+    app.include_router(kb_router)
 
     return app
 
@@ -38,6 +40,8 @@ def run_api(host, port, **kwargs):
 
 
 if __name__ == "__main__":
+    create_tables()
+    
     parser = argparse.ArgumentParser(
         prog="langchain-ChatGLM",
         description="About langchain-ChatGLM, local knowledge based ChatGLM with langchain"

@@ -12,17 +12,17 @@ from zchat.settings import Settings
 
 def _filter_logs(record: dict) -> bool:
     # hide debug logs if Settings.basic_settings.log_verbose=False 
-    if record["level"].no <= 10 and not Settings.basic_settings.log_verbose:
+    if record["level"].no <= 10 and not Settings.basic_settings["log_verbose"]:
         return False
     # hide traceback logs if Settings.basic_settings.log_verbose=False 
-    if record["level"].no == 40 and not Settings.basic_settings.log_verbose:
+    if record["level"].no == 40 and not Settings.basic_settings["log_verbose"]:
         record["exception"] = None
     return True
 
 
-# 默认每调用一次 build_logger 就会添加一次 hanlder，导致 chatchat.log 里重复输出
+# 默认每调用一次 build_logger 就会添加一次 hanlder，导致 zchat.log 里重复输出
 @cached(max_size=100, algorithm=CachingAlgorithmFlag.LRU)
-def build_logger(log_file: str = "chatchat"):
+def build_logger(log_file: str = "zchat"):
     """
     build a logger with colorized output and a log file, for example:
 
@@ -115,7 +115,7 @@ def get_config_dict(
             },
         },
         "loggers": {
-            "chatchat_core": {
+            "zchat_core": {
                 "handlers": ["stream_handler", "file_handler"],
                 "level": log_level,
                 "propagate": False,
